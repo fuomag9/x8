@@ -20,7 +20,24 @@ impl<'a> Runner<'a> {
         shared_green_lines: Arc<Mutex<&'a mut HashMap<String, usize>>>,
         shared_found_params: Arc<Mutex<&'a mut Vec<FoundParameter>>>,
         mut params: Vec<String>,
+        recursion_depth: usize,
     ) -> Result<(), Box<dyn Error>> {
+        // Prevent stack overflow - limit recursion depth
+        if recursion_depth > 50 {
+            return Ok(());
+        }
+        
+        // Base case: if we have 1 or fewer parameters, no need to split
+        if params.len() <= 1 {
+            return self.check_parameters_recursion(
+                shared_diffs,
+                shared_green_lines,
+                shared_found_params,
+                params,
+                recursion_depth + 1,
+            ).await;
+        }
+        
         let second_params_part = params.split_off(params.len() / 2);
 
         self.check_parameters_recursion(
@@ -28,6 +45,7 @@ impl<'a> Runner<'a> {
             Arc::clone(&shared_green_lines),
             Arc::clone(&shared_found_params),
             params,
+            recursion_depth + 1,
         )
         .await?;
         self.check_parameters_recursion(
@@ -35,6 +53,7 @@ impl<'a> Runner<'a> {
             shared_green_lines,
             shared_found_params,
             second_params_part,
+            recursion_depth + 1,
         )
         .await
     }
@@ -46,7 +65,18 @@ impl<'a> Runner<'a> {
         shared_green_lines: Arc<Mutex<&'a mut HashMap<String, usize>>>,
         shared_found_params: Arc<Mutex<&'a mut Vec<FoundParameter>>>,
         mut params: Vec<String>,
+        recursion_depth: usize,
     ) -> Result<(), Box<dyn Error>> {
+        // Base case: if no parameters left, nothing to check
+        if params.is_empty() {
+            return Ok(());
+        }
+        
+        // Prevent stack overflow - limit recursion depth  
+        if recursion_depth > 50 {
+            return Ok(());
+        }
+        
         let request = Request::new(&self.request_defaults, params.clone());
         let mut response = match request.clone().wrapped_send().await {
             Ok(val) => val,
@@ -114,6 +144,7 @@ impl<'a> Runner<'a> {
                         shared_green_lines,
                         shared_found_params,
                         params.clone(),
+                        recursion_depth + 1,
                     )
                     .await;
             }
@@ -190,6 +221,7 @@ impl<'a> Runner<'a> {
                         shared_green_lines,
                         shared_found_params,
                         params.clone(),
+                        recursion_depth + 1,
                     )
                     .await;
             }
@@ -270,6 +302,7 @@ impl<'a> Runner<'a> {
                                 shared_green_lines,
                                 shared_found_params,
                                 params.clone(),
+                                recursion_depth + 1,
                             )
                             .await;
                     }
@@ -315,6 +348,7 @@ impl<'a> Runner<'a> {
                     shared_green_lines,
                     shared_found_params,
                     chunk.to_vec(),
+                    0,
                 )
                 .await
             }
